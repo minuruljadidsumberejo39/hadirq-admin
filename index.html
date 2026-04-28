@@ -13,7 +13,7 @@
     <script>
         // --- KONFIGURASI GITHUB PAGES / EXTERNAL HOST ---
         // Ganti URL ini dengan URL Web App Apps Script Admin Anda
-        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx_L2R9sqKBql7Eq0NNW4wFRtw9jQ7y81k4k_etIxorDrd3hjoTw3QHyRehEgM54CFd/exec";
+        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzni11HAFoobdNu2dckLHpdSWBKbn1HisgJ04pwzW_3ZIvX8YcfL2rqzJYVIAd9-pkZ/exec";
 
         if (typeof google === 'undefined' || !google.script || !google.script.run) {
             console.log("Menjalankan mode External Host (Github Pages)");
@@ -5368,21 +5368,9 @@
                 // ===== ANTI-DOUBLE SCAN CLIENT-SIDE (2 layer) =====
                 // Layer 1: NIS sama dalam SCAN_COOLDOWN_MS detik — tolak TANPA kirim server
                 if (txt === lastScannedNis && (now - lastScannedTime) < SCAN_COOLDOWN_MS) {
-                    var st2 = document.getElementById('scan-status');
-                    if (st2) st2.textContent = '\u26A0\uFE0F Data Ganda Dicegah';
-                    showScanToast('Data Ganda Dicegah (' + txt + ')', 'warning');
-                    try {
-                        // Beep nada rendah — berbeda dari sukses
-                        var a2 = new (window.AudioContext || window.webkitAudioContext)();
-                        var o2 = a2.createOscillator(); var g2 = a2.createGain();
-                        o2.connect(g2); g2.connect(a2.destination);
-                        o2.type = 'sine'; o2.frequency.value = 400;
-                        g2.gain.setValueAtTime(0, a2.currentTime);
-                        g2.gain.linearRampToValueAtTime(0.1, a2.currentTime + 0.02);
-                        g2.gain.linearRampToValueAtTime(0, a2.currentTime + 0.15);
-                        o2.start(); o2.stop(a2.currentTime + 0.15);
-                    } catch(e2){}
-                    return; // Jangan kirim ke server
+                    // Abaikan secara diam-diam (silent ignore) agar kamera 
+                    // yang membaca QR berkali-kali/detik tidak men-spam notifikasi
+                    return; 
                 }
                 // Layer 2: Request sebelumnya masih berjalan
                 if (isProcessingScan) return;
