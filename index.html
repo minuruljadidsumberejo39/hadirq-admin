@@ -13,7 +13,7 @@
     <script>
         // --- KONFIGURASI GITHUB PAGES / EXTERNAL HOST ---
         // Ganti URL ini dengan URL Web App Apps Script Admin Anda
-        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwLpnQTajfX5CEW-_y1hqL1CCN8m0Jwm21RjfbyLeM0kvAlb_RmMYAQkVIScJtzm8h_/exec";
+        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx_L2R9sqKBql7Eq0NNW4wFRtw9jQ7y81k4k_etIxorDrd3hjoTw3QHyRehEgM54CFd/exec";
 
         if (typeof google === 'undefined' || !google.script || !google.script.run) {
             console.log("Menjalankan mode External Host (Github Pages)");
@@ -4532,56 +4532,63 @@
                 var wrapper = document.querySelector('.alat-scan-wrapper');
                 var st = document.getElementById('alat-scan-status');
                 var sub = document.getElementById('alat-scan-subtext');
+                var inputEl = document.getElementById('alat-scan-input');
+
+                // ===== OPTIMISTIC UI: Clear input & berikan flash hijau INSTAN =====
+                if (inputEl) {
+                    inputEl.value = '';           // Kosongkan segera
+                    flashInputGreen(inputEl);     // Visual feedback instan
+                    beepInstant();                // Audio feedback instan
+                }
+                // =====================================================================
 
                 hideAlatSearchResults();
                 wrapper.classList.remove('active-scan');
-                st.textContent = 'Memproses...';
-                sub.innerHTML = '<div class="spinner" style="width:16px;height:16px;display:inline-block;margin-right:8px;vertical-align:middle;border-color:#3b82f6;border-top-color:transparent;"></div>Tunggu sebentar...';
+                st.textContent = '\u23F3 Memproses...';
+                sub.innerHTML = '<span style="opacity:0.7;font-size:0.85rem">Mengirim data ke server...</span>';
 
                 send({ nis: txt, status: 'Hadir', keterangan: 'Scan Alat' }, function (res) {
                     var nama = res.nama || '', nd = nama.split(' ')[0] || nama, ns = nd.replace(/[^a-zA-Z\s]/g, '');
                     var tipeLabel = res.tipe ? '<span class="scan-tipe ' + res.tipe + '">' + res.tipe.toUpperCase() + '</span>' : '';
 
-                    // Use HadirQEnhancements for toast if available
-                    var hasEnhancements = window.HadirQEnhancements && typeof window.HadirQEnhancements.showToast === 'function';
-
                     if (res.status === 'duplicate') {
-                        st.textContent = 'Sudah Absen';
+                        st.textContent = '\u26A0\uFE0F Sudah Absen';
                         sub.innerHTML = '<span style="color:#f59e0b">' + nama + ' sudah absen ' + tipeLabel + '</span>';
-                        if (hasEnhancements) window.HadirQEnhancements.showToast(nama + ' sudah absen', 'warning');
+                        showScanToast(nama + ' sudah absen', 'warning');
                         playDuplicateAudio();
                         speak(ns + ' sudah absen');
                     } else if (res.status === 'error') {
-                        st.textContent = 'Gagal';
-                        sub.innerHTML = '<span style="color:#ef4444">' + res.message + '</span>';
-                        if (hasEnhancements) window.HadirQEnhancements.showToast(res.message, 'error');
+                        // Error NON-BLOCKING: tampilkan toast kecil, jangan kunci layar
+                        st.textContent = '\u274C Gagal';
+                        sub.innerHTML = '<span style="color:#ef4444;font-size:0.82rem">' + res.message + '</span>';
+                        showScanToast(res.message, 'error');
                         speak(res.message.indexOf('belum') >= 0 ? ns + ' belum absen masuk' : 'nis tidak terdaftar');
                     } else {
+                        // SUKSES
                         playSuccessAudio();
-                        st.textContent = 'Sukses!';
-                        sub.innerHTML = '<span style="color:#10b981">' + res.message + ' ' + tipeLabel + '</span>';
-                        if (hasEnhancements) window.HadirQEnhancements.showToast(res.message, 'success');
+                        st.textContent = '\u2705 Sukses!';
+                        sub.innerHTML = '<span style="color:#10b981;font-weight:600">' + res.message + ' ' + tipeLabel + '</span>';
+                        showScanToast(res.message, 'success');
                         speak(ns + ' ' + (res.tipe || 'hadir'));
                     }
 
-                    // Reset UI after delay
+                    // Reset UI setelah 2 detik — auto-focus kembali ke input
                     setTimeout(function () {
-                        st.textContent = 'Siap Memindai';
-                        sub.textContent = 'Arahkan scanner ke QR/Barcode siswa, data akan muncul di bawah ini secara otomatis.';
+                        st.textContent = '\uD83D\uDCF7 Siap Memindai';
+                        sub.textContent = 'Arahkan scanner ke QR/Barcode siswa — data masuk otomatis.';
                         wrapper.classList.remove('active-scan');
-                        focusAlatScanInput();
+                        focusAlatScanInput(); // Auto-focus kembali
                     }, 2000);
                 }, function (e) {
-                    st.textContent = 'Gagal';
-                    sub.innerHTML = '<span style="color:#ef4444">' + e.message + '</span>';
-                    if (window.HadirQEnhancements && typeof window.HadirQEnhancements.showToast === 'function') {
-                        window.HadirQEnhancements.showToast('Gagal: ' + e.message, 'error');
-                    }
+                    // Error handler NON-BLOCKING — petugas tetap bisa scan berikutnya
+                    st.textContent = '\u26A0\uFE0F Koneksi Lambat';
+                    sub.innerHTML = '<span style="color:#f59e0b;font-size:0.82rem">Data mungkin tersimpan. Cek dashboard.</span>';
+                    showScanToast('Server lambat: ' + e.message, 'warning');
                     setTimeout(function () {
-                        st.textContent = 'Siap Memindai';
-                        sub.textContent = 'Arahkan scanner ke QR/Barcode siswa, data akan muncul di bawah ini secara otomatis.';
+                        st.textContent = '\uD83D\uDCF7 Siap Memindai';
+                        sub.textContent = 'Arahkan scanner ke QR/Barcode siswa — data masuk otomatis.';
                         wrapper.classList.remove('active-scan');
-                        focusAlatScanInput();
+                        focusAlatScanInput(); // Auto-focus kembali meski error
                     }, 2000);
                 });
             }
@@ -5192,6 +5199,11 @@
                     keterangan: document.getElementById('m-ket').value || 'Manual'
                 };
 
+                // ===== OPTIMISTIC UI: Bersihkan form SEGERA tanpa tunggu server =====
+                document.getElementById('m-ket').value = '';
+                document.getElementById('m-status').value = 'Hadir';
+                // ====================================================================
+
                 google.script.run
                     .withSuccessHandler(function (res) {
                         // ENHANCEMENT: Remove button loading
@@ -5262,47 +5274,159 @@
                     .processPresensi(data);
             }
 
+            // ================================================================
+            // SCAN ENGINE — Anti-Double Scan + Optimistic UI + Instant Feedback
+            // ================================================================
             var isProcessingScan = false;
-            var lastScannedNis = '';
-            var lastScannedTime = 0;
+            var lastScannedNis = '';    // NIS terakhir yang di-scan
+            var lastScannedTime = 0;   // Timestamp scan terakhir (ms)
+            var SCAN_COOLDOWN_MS = 5000; // 5 detik cooldown untuk NIS yang sama
 
-            function send(d, ok, err) { google.script.run.withSuccessHandler(ok).withFailureHandler(err).processPresensi(d); }
+            /**
+             * Beep instan saat scan terbaca — tidak perlu tunggu server
+             * Berbeda dari playSuccessAudio (yang hanya jalan jika TTS off)
+             */
+            function beepInstant() {
+                try {
+                    var a = new (window.AudioContext || window.webkitAudioContext)();
+                    var o = a.createOscillator();
+                    var g = a.createGain();
+                    o.connect(g);
+                    g.connect(a.destination);
+                    o.type = 'sine';
+                    o.frequency.value = 1200; // Frekuensi tinggi — khas scanner
+                    g.gain.setValueAtTime(0, a.currentTime);
+                    g.gain.linearRampToValueAtTime(0.15, a.currentTime + 0.01);
+                    g.gain.linearRampToValueAtTime(0, a.currentTime + 0.08);
+                    o.start();
+                    o.stop(a.currentTime + 0.1);
+                } catch (e) { /* Abaikan jika browser tidak support */ }
+            }
+
+            /**
+             * Flash hijau pada elemen input sebagai visual feedback instan
+             */
+            function flashInputGreen(el) {
+                if (!el) return;
+                el.style.transition = 'background-color 0.05s';
+                el.style.backgroundColor = '#bbf7d0'; // Hijau muda
+                el.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.4)';
+                setTimeout(function () {
+                    el.style.backgroundColor = '';
+                    el.style.boxShadow = '';
+                }, 600);
+            }
+
+            /**
+             * Toast kecil non-blocking di pojok layar — tidak mengunci petugas
+             */
+            function showScanToast(msg, type) {
+                // Gunakan HadirQEnhancements jika tersedia
+                if (window.HadirQEnhancements && typeof window.HadirQEnhancements.showToast === 'function') {
+                    window.HadirQEnhancements.showToast(msg, type);
+                    return;
+                }
+                // Fallback toast mandiri
+                var toast = document.getElementById('scan-toast-overlay');
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = 'scan-toast-overlay';
+                    toast.style.cssText = [
+                        'position:fixed', 'bottom:80px', 'left:50%', 'transform:translateX(-50%)',
+                        'padding:10px 20px', 'border-radius:24px', 'font-size:0.85rem',
+                        'font-weight:600', 'z-index:9999', 'pointer-events:none',
+                        'transition:opacity 0.3s', 'white-space:nowrap', 'max-width:90vw',
+                        'text-align:center', 'box-shadow:0 4px 20px rgba(0,0,0,0.2)'
+                    ].join(';');
+                    document.body.appendChild(toast);
+                }
+                var colors = {
+                    success: { bg: '#10b981', color: '#fff' },
+                    warning: { bg: '#f59e0b', color: '#fff' },
+                    error:   { bg: '#ef4444', color: '#fff' }
+                };
+                var c = colors[type] || colors.success;
+                toast.style.background = c.bg;
+                toast.style.color = c.color;
+                toast.textContent = msg;
+                toast.style.opacity = '1';
+                clearTimeout(toast._hideTimer);
+                toast._hideTimer = setTimeout(function () {
+                    toast.style.opacity = '0';
+                }, 2500);
+            }
+
+            function send(d, ok, err) {
+                // Input sudah dikosongkan optimistis sebelum fungsi ini dipanggil
+                google.script.run.withSuccessHandler(ok).withFailureHandler(err).processPresensi(d);
+            }
             function hidePause() { /* Deprecated */ }
+
             function onScan(txt) {
                 var now = Date.now();
+
+                // ===== ANTI-DOUBLE SCAN CLIENT-SIDE (2 layer) =====
+                // Layer 1: NIS sama dalam SCAN_COOLDOWN_MS detik — tolak TANPA kirim server
+                if (txt === lastScannedNis && (now - lastScannedTime) < SCAN_COOLDOWN_MS) {
+                    var st2 = document.getElementById('scan-status');
+                    if (st2) st2.textContent = '\u26A0\uFE0F Data Ganda Dicegah';
+                    showScanToast('Data Ganda Dicegah (' + txt + ')', 'warning');
+                    try {
+                        // Beep nada rendah — berbeda dari sukses
+                        var a2 = new (window.AudioContext || window.webkitAudioContext)();
+                        var o2 = a2.createOscillator(); var g2 = a2.createGain();
+                        o2.connect(g2); g2.connect(a2.destination);
+                        o2.type = 'sine'; o2.frequency.value = 400;
+                        g2.gain.setValueAtTime(0, a2.currentTime);
+                        g2.gain.linearRampToValueAtTime(0.1, a2.currentTime + 0.02);
+                        g2.gain.linearRampToValueAtTime(0, a2.currentTime + 0.15);
+                        o2.start(); o2.stop(a2.currentTime + 0.15);
+                    } catch(e2){}
+                    return; // Jangan kirim ke server
+                }
+                // Layer 2: Request sebelumnya masih berjalan
                 if (isProcessingScan) return;
-                if (txt === lastScannedNis && (now - lastScannedTime) < 2500) return;
+                // ===================================================
 
                 isProcessingScan = true;
                 lastScannedNis = txt;
                 lastScannedTime = now;
 
-                var r = document.getElementById('scan-result'), st = document.getElementById('scan-status');
-                st.textContent = 'Memproses...';
+                var r = document.getElementById('scan-result');
+                var st = document.getElementById('scan-status');
+
+                // ===== OPTIMISTIC FEEDBACK INSTAN =====
+                beepInstant(); // Beep langsung saat scan terbaca
+                st.textContent = '\u23F3 Memproses...';
                 r.className = 'alert';
-                r.innerHTML = '<div class="spinner"></div>Proses...';
+                r.innerHTML = '<div class="spinner"></div>Mengirim...';
                 r.classList.remove('hidden');
+                // ======================================
 
                 send({ nis: txt, status: 'Hadir', keterangan: 'Scan' }, function (res) {
                     var nama = res.nama || '', nd = nama.split(' ')[0] || nama, ns = nd.replace(/[^a-zA-Z\s]/g, '');
                     var tipeLabel = res.tipe ? '<span class="scan-tipe ' + res.tipe + '">' + res.tipe.toUpperCase() + '</span>' : '';
 
                     if (res.status === 'duplicate') {
-                        st.textContent = 'Sudah Absen';
+                        st.textContent = '\u26A0\uFE0F Sudah Absen';
                         r.className = 'alert alert-warning';
                         r.innerHTML = nama + ' sudah absen ' + tipeLabel;
+                        showScanToast(nama + ' sudah absen', 'warning');
                         playDuplicateAudio();
                         speak(ns + ' sudah absen');
                     } else if (res.status === 'error') {
-                        st.textContent = 'Gagal';
+                        // NON-BLOCKING: tampilkan toast kecil, scanner tetap bisa jalan
+                        st.textContent = '\u274C Gagal';
                         r.className = 'alert alert-error';
                         r.textContent = res.message;
+                        showScanToast(res.message, 'error');
                         speak(res.message.indexOf('belum') >= 0 ? ns + ' belum absen masuk' : 'nis tidak terdaftar');
                     } else {
                         playSuccessAudio();
-                        st.textContent = 'Sukses!';
+                        st.textContent = '\u2705 Sukses!';
                         r.className = 'alert alert-success';
                         r.innerHTML = res.message + tipeLabel;
+                        showScanToast(res.message, 'success');
                         speak(ns + ' ' + (res.tipe || 'hadir'));
                     }
 
@@ -5312,14 +5436,16 @@
                         isProcessingScan = false;
                     }, 1500);
                 }, function (e) {
-                    st.textContent = 'Gagal';
-                    r.className = 'alert alert-error';
-                    r.textContent = e.message;
+                    // Error NON-BLOCKING — scanner tetap bisa lanjut
+                    st.textContent = '\u26A0\uFE0F Koneksi Lambat';
+                    r.className = 'alert alert-warning';
+                    r.textContent = 'Server lambat. Data mungkin tersimpan.';
+                    showScanToast('Server lambat: ' + e.message, 'warning');
                     setTimeout(function () {
                         r.classList.add('hidden');
                         st.textContent = 'Arahkan ke QR';
                         isProcessingScan = false;
-                    }, 1500);
+                    }, 2000);
                 });
             }
             function resetCameraControls(statusText) {
