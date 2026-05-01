@@ -13,7 +13,7 @@
     <script>
         // --- KONFIGURASI GITHUB PAGES / EXTERNAL HOST ---
         // Ganti URL ini dengan URL Web App Apps Script Admin Anda
-        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw4TH4M2fwj0-wq6po8xW9PGIrtlkbd7aOeJdAUmkV0izuiTeZ09RXUKqE6GPoQS5X_/exec";
+        var GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzG2nQgn-wHhCpnCcijrCfZBuqDzBWp3qSrBEZCqBUfQVz4CWGHWF91iaEw-V6aY_0c/exec";
 
         if (typeof google === 'undefined' || !google.script || !google.script.run) {
             console.log("Menjalankan mode External Host (Github Pages)");
@@ -1949,6 +1949,23 @@
                 font-family: 'Poppins', sans-serif
             }
 
+            /* Normalisasi Ukuran: CSS untuk Kop Sekolah */
+            .print-report #print-kop {
+                text-align: center;
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+
+            .print-report #print-kop-img {
+                width: 100% !important;
+                max-width: 800px !important;
+                height: auto !important;
+                display: block !important;
+                margin: 0 auto !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
             .print-report h2 {
                 font-size: 16px;
                 margin: 0;
@@ -1986,6 +2003,12 @@
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact
             }
+        }
+
+        /* Loading spinner animation untuk Kop Surat */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         /* Loading Page Styles */
@@ -5030,100 +5053,223 @@
                 if (!lastLaporanData || !Array.isArray(lastLaporanData.data)) return alert('Muat data terlebih dahulu');
                 if (lastLaporanData.data.length === 0) return alert('Tidak ada data untuk dicetak');
 
+                console.log('🔍 Checking currentSettings:', currentSettings);
+
                 var d = lastLaporanData.data, st = lastLaporanData.stats;
                 var school = document.getElementById('school-name-display').textContent;
                 var dari = formatTgl((lastLaporanFilter && lastLaporanFilter.dariTgl) || document.getElementById('lap-dari').value) || '-';
                 var sampai = formatTgl((lastLaporanFilter && lastLaporanFilter.sampaiTgl) || document.getElementById('lap-sampai').value) || '-';
 
-                // Setup Kop Surat
-                var kopUrl = (currentSettings && currentSettings.kopSuratUrl) ? currentSettings.kopSuratUrl : '';
-                var fullKopUrl = idToLogoUrl(kopUrl);
-                if (fullKopUrl) {
-                    document.getElementById('print-kop-img').src = fullKopUrl;
-                    document.getElementById('print-kop').style.display = 'block';
-                    document.getElementById('print-school').style.display = 'none'; // Hide text title if kop exists
-                } else {
-                    document.getElementById('print-kop').style.display = 'none';
-                    document.getElementById('print-school').style.display = 'block'; // Show text title
-                }
-
-                document.getElementById('print-school').textContent = school;
-                document.getElementById('print-filter').innerHTML = '<strong>Periode Presensi:</strong> ' + dari + ' s/d ' + sampai;
-                // document.getElementById('print-date').innerHTML = '<strong>Tanggal Cetak:</strong> ' + new Date().toLocaleString('id-ID'); // Removed in favor of footer
-
-                var html = '';
-                var student100 = 0;
-                var maxAlpha = 0;
-                var maxAlphaName = '-';
-                var totalPercentSum = 0;
-
-                for (var i = 0; i < d.length; i++) {
-                    var total = d[i].total || 0;
-                    var p = total > 0 ? (d[i].hadir / total * 100) : 0;
-                    totalPercentSum += p;
-                    if (p >= 100) student100++;
-                    if (d[i].alpha > maxAlpha) {
-                        maxAlpha = d[i].alpha;
-                        maxAlphaName = d[i].nama;
-                    }
-
-                    var pText = p.toFixed(1) + '%';
-                    var rowStyle = i % 2 === 1 ? 'background-color:#f8fafc;' : '';
-                    if (d[i].alpha > 3) rowStyle = 'background-color:#fee2e2;';
+                // PERBAIKAN KUNCI: Pastikan settings ter-load sebelum ambil Kop URL
+                function getKopUrlAndPrint() {
+                    // Setup Kop Surat - Cek dari berbagai sumber
+                    var kopUrl = '';
                     
-                    html += '<tr style="' + rowStyle + '"><td>' + d[i].no + '</td><td>' + d[i].nis + '</td><td style="text-align:left">' + d[i].nama + '</td><td>' + d[i].kelas + '</td><td>' + d[i].hadir + '</td><td>' + d[i].sakit + '</td><td>' + d[i].ijin + '</td><td>' + d[i].alpha + '</td><td>' + (d[i].terlambat || 0) + '</td><td>' + d[i].total + '</td><td style="font-weight:bold">' + pText + '</td></tr>';
-                }
-
-                var totalAll = st.hadir + st.sakit + st.ijin + st.alpha;
-                var avgPercent = (totalPercentSum / d.length).toFixed(1);
-                
-                html += '<tr class="total-row"><td></td><td></td><td style="text-align:left"><strong>TOTAL</strong></td><td></td><td>' + st.hadir + '</td><td>' + st.sakit + '</td><td>' + st.ijin + '</td><td>' + st.alpha + '</td><td>' + (st.terlambat || 0) + '</td><td>' + totalAll + '</td><td>' + avgPercent + '%</td></tr>';
-                document.getElementById('print-tbody').innerHTML = html;
-
-                // Inject Print Global Stats
-                var gHtml = '<div style="margin-bottom:4px"><strong>• Rata-rata Kehadiran Seluruh Kelas:</strong> ' + avgPercent + '%</div>';
-                gHtml += '<div style="margin-bottom:4px"><strong>• Jumlah Siswa Masuk 100%:</strong> ' + student100 + ' Siswa</div>';
-                if (maxAlpha > 0) {
-                    gHtml += '<div style="color:#dc2626"><strong>• Siswa dengan Ketidakhadiran Tertinggi:</strong> ' + maxAlphaName + ' (' + maxAlpha + ' Alfa)</div>';
-                }
-                document.getElementById('print-global-stats').innerHTML = gHtml;
-
-                // --- NEW: Inject Holiday Table for Print ---
-                var printHolidayContainer = document.getElementById('print-global-stats');
-                if (lastLaporanData.holidays && lastLaporanData.holidays.length > 0) {
-                    var hTableHtml = '<div style="margin-top:15px;"><strong style="font-size:12px;">TABEL KETERANGAN LIBUR</strong>';
-                    hTableHtml += '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:10px;">';
-                    hTableHtml += '<thead style="background:#f1f5f9;"><tr><th style="width:120px; text-align:left; padding:4px; border:1px solid #cbd5e1;">Tanggal</th><th style="text-align:left; padding:4px; border:1px solid #cbd5e1;">Keterangan</th></tr></thead>';
-                    hTableHtml += '<tbody>';
-                    for (var k = 0; k < lastLaporanData.holidays.length; k++) {
-                        hTableHtml += '<tr><td style="padding:4px; border:1px solid #cbd5e1;">' + lastLaporanData.holidays[k].tanggal + '</td><td style="padding:4px; border:1px solid #cbd5e1;">' + lastLaporanData.holidays[k].keterangan + '</td></tr>';
+                    // 1. Cek dari currentSettings
+                    if (currentSettings && currentSettings.kopSuratUrl) {
+                        kopUrl = currentSettings.kopSuratUrl;
+                        console.log('✅ Kop URL dari currentSettings:', kopUrl);
+                    } 
+                    // 2. Fallback: Cek dari input field
+                    else {
+                        var kopInput = document.getElementById('set-kopurl');
+                        if (kopInput && kopInput.value) {
+                            kopUrl = kopInput.value;
+                            console.log('✅ Kop URL dari input field:', kopUrl);
+                        }
                     }
-                    hTableHtml += '</tbody></table></div>';
-                    printHolidayContainer.innerHTML += hTableHtml;
+                    
+                    // 3. Jika masih kosong, coba load dari server
+                    if (!kopUrl) {
+                        console.log('⚠️ Kop URL kosong, mencoba load dari server...');
+                        google.script.run
+                            .withSuccessHandler(function(settings) {
+                                if (settings && settings.kopSuratUrl) {
+                                    console.log('✅ Kop URL dari server:', settings.kopSuratUrl);
+                                    currentSettings = settings; // Update currentSettings
+                                    proceedWithPrint(settings.kopSuratUrl);
+                                } else {
+                                    console.log('ℹ️ Tidak ada Kop URL di server, menggunakan text title');
+                                    proceedWithPrint('');
+                                }
+                            })
+                            .withFailureHandler(function(error) {
+                                console.error('❌ Error loading settings:', error.message);
+                                proceedWithPrint('');
+                            })
+                            .getSettings();
+                        return; // Exit dan tunggu callback
+                    }
+                    
+                    // Jika kopUrl sudah ada, langsung proceed
+                    proceedWithPrint(kopUrl);
                 }
                 
-                // Add "Dicetak pada" timestamp for Print
-                var now = new Date();
-                var timeStr = now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit', year:'numeric'}) + ' ' + 
-                              now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
-                document.getElementById('print-date').innerHTML = '<em style="font-size:9px; color:#666">Dicetak pada: ' + timeStr + '</em>';
-                document.getElementById('print-date').style.display = 'block';
+                // Fungsi untuk proses print dengan Kop URL yang sudah pasti
+                function proceedWithPrint(kopUrl) {
+                    var kopImgElement = document.getElementById('print-kop-img');
+                    var kopContainer = document.getElementById('print-kop');
+                    var schoolTitle = document.getElementById('print-school');
+                    
+                    // SOLUSI: Gunakan server-side conversion untuk mengatasi CORS
+                    if (kopUrl && kopUrl.trim() !== '' && kopImgElement && kopContainer) {
+                        console.log('🔄 Memuat Kop Surat untuk print (server-side):', kopUrl);
+                        
+                        // Tampilkan loading indicator
+                        kopContainer.innerHTML = '<div style="text-align:center;padding:20px;"><div style="display:inline-block;width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #10b981;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:10px;color:#666;">Memuat Kop Surat...</p></div>';
+                        kopContainer.style.display = 'block';
+                        schoolTitle.style.display = 'none';
+                        
+                        // Panggil server untuk konversi ke Base64
+                        google.script.run
+                            .withSuccessHandler(function(base64Data) {
+                                if (base64Data) {
+                                    console.log('✅ Base64 data diterima, panjang:', base64Data.length);
+                                    
+                                    // Restore container dengan gambar base64
+                                    kopContainer.innerHTML = '<img id="print-kop-img" src="" style="width:100%;max-width:800px;height:auto;">';
+                                    kopImgElement = document.getElementById('print-kop-img');
+                                    
+                                    // PERBAIKAN KUNCI: Tunggu gambar benar-benar ter-load sebelum print
+                                    kopImgElement.onload = function() {
+                                        console.log('✅ Gambar Kop berhasil ter-render, siap print!');
+                                        // Lanjutkan proses print setelah gambar ter-load
+                                        continueWithPrint();
+                                    };
+                                    
+                                    kopImgElement.onerror = function() {
+                                        console.error('❌ Error rendering gambar Base64');
+                                        // Fallback ke text title
+                                        kopContainer.style.display = 'none';
+                                        schoolTitle.style.display = 'block';
+                                        continueWithPrint();
+                                    };
+                                    
+                                    // Set base64 data dari server (ini akan trigger onload)
+                                    kopImgElement.src = base64Data;
+                                    
+                                    // Normalisasi Ukuran
+                                    kopImgElement.style.width = '100%';
+                                    kopImgElement.style.maxWidth = '800px';
+                                    kopImgElement.style.height = 'auto';
+                                    kopImgElement.style.display = 'block';
+                                    kopImgElement.style.margin = '0 auto';
+                                    
+                                } else {
+                                    // Gagal, fallback ke text title
+                                    console.warn('⚠️ Server return null, menggunakan text title');
+                                    kopContainer.style.display = 'none';
+                                    schoolTitle.style.display = 'block';
+                                    continueWithPrint();
+                                }
+                            })
+                            .withFailureHandler(function(error) {
+                                console.error('❌ Error memuat Kop Surat:', error.message);
+                                // Fallback ke text title
+                                kopContainer.style.display = 'none';
+                                schoolTitle.style.display = 'block';
+                                continueWithPrint();
+                            })
+                            .getImageAsBase64(kopUrl);
+                    } else {
+                        // Jika tidak ada kop, tampilkan text title
+                        console.log('ℹ️ Tidak ada Kop URL, menggunakan text title');
+                        if (kopContainer) kopContainer.style.display = 'none';
+                        if (schoolTitle) schoolTitle.style.display = 'block';
+                        
+                        // Lanjutkan proses print
+                        continueWithPrint();
+                    }
+                }
+                
+                // Fungsi untuk melanjutkan proses print setelah kop ready
+                function continueWithPrint() {
+                    console.log('📝 Menyiapkan konten laporan...');
+                    
+                    document.getElementById('print-school').textContent = school;
+                    document.getElementById('print-filter').innerHTML = '<strong>Periode Presensi:</strong> ' + dari + ' s/d ' + sampai;
 
-                // Setup Footer Signature
-                var kota = document.getElementById('opt-kota').value || 'Kota';
-                var tanggal = formatDateIndo(document.getElementById('opt-tanggal').valueAsDate) || '';
-                var kepsek = document.getElementById('opt-kepsek').value || '.........................';
-                var kepsekNip = document.getElementById('opt-kepsek-nip').value;
-                var guru = document.getElementById('opt-guru').value || '.........................';
-                var guruNip = document.getElementById('opt-guru-nip').value;
+                    var html = '';
+                    var student100 = 0;
+                    var maxAlpha = 0;
+                    var maxAlphaName = '-';
+                    var totalPercentSum = 0;
 
-                document.getElementById('sig-date').textContent = kota + ', ' + tanggal;
-                document.getElementById('sig-kepsek-nama').textContent = kepsek;
-                document.getElementById('sig-kepsek-nip').textContent = kepsekNip ? 'NIP. ' + kepsekNip : 'NIP. .........................';
-                document.getElementById('sig-guru-nama').textContent = guru;
-                document.getElementById('sig-guru-nip').textContent = guruNip ? 'NIP. ' + guruNip : 'NIP. .........................';
+                    for (var i = 0; i < d.length; i++) {
+                        var total = d[i].total || 0;
+                        var p = total > 0 ? (d[i].hadir / total * 100) : 0;
+                        totalPercentSum += p;
+                        if (p >= 100) student100++;
+                        if (d[i].alpha > maxAlpha) {
+                            maxAlpha = d[i].alpha;
+                            maxAlphaName = d[i].nama;
+                        }
 
-                setTimeout(function () { window.print(); }, 100);
+                        var pText = p.toFixed(1) + '%';
+                        var rowStyle = i % 2 === 1 ? 'background-color:#f8fafc;' : '';
+                        if (d[i].alpha > 3) rowStyle = 'background-color:#fee2e2;';
+                        
+                        html += '<tr style="' + rowStyle + '"><td>' + d[i].no + '</td><td>' + d[i].nis + '</td><td style="text-align:left">' + d[i].nama + '</td><td>' + d[i].kelas + '</td><td>' + d[i].hadir + '</td><td>' + d[i].sakit + '</td><td>' + d[i].ijin + '</td><td>' + d[i].alpha + '</td><td>' + (d[i].terlambat || 0) + '</td><td>' + d[i].total + '</td><td style="font-weight:bold">' + pText + '</td></tr>';
+                    }
+
+                    var totalAll = st.hadir + st.sakit + st.ijin + st.alpha;
+                    var avgPercent = (totalPercentSum / d.length).toFixed(1);
+                    
+                    html += '<tr class="total-row"><td></td><td></td><td style="text-align:left"><strong>TOTAL</strong></td><td></td><td>' + st.hadir + '</td><td>' + st.sakit + '</td><td>' + st.ijin + '</td><td>' + st.alpha + '</td><td>' + (st.terlambat || 0) + '</td><td>' + totalAll + '</td><td>' + avgPercent + '%</td></tr>';
+                    document.getElementById('print-tbody').innerHTML = html;
+
+                    // Inject Print Global Stats
+                    var gHtml = '<div style="margin-bottom:4px"><strong>• Rata-rata Kehadiran Seluruh Kelas:</strong> ' + avgPercent + '%</div>';
+                    gHtml += '<div style="margin-bottom:4px"><strong>• Jumlah Siswa Masuk 100%:</strong> ' + student100 + ' Siswa</div>';
+                    if (maxAlpha > 0) {
+                        gHtml += '<div style="color:#dc2626"><strong>• Siswa dengan Ketidakhadiran Tertinggi:</strong> ' + maxAlphaName + ' (' + maxAlpha + ' Alfa)</div>';
+                    }
+                    document.getElementById('print-global-stats').innerHTML = gHtml;
+
+                    // --- NEW: Inject Holiday Table for Print ---
+                    var printHolidayContainer = document.getElementById('print-global-stats');
+                    if (lastLaporanData.holidays && lastLaporanData.holidays.length > 0) {
+                        var hTableHtml = '<div style="margin-top:15px;"><strong style="font-size:12px;">TABEL KETERANGAN LIBUR</strong>';
+                        hTableHtml += '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:10px;">';
+                        hTableHtml += '<thead style="background:#f1f5f9;"><tr><th style="width:120px; text-align:left; padding:4px; border:1px solid #cbd5e1;">Tanggal</th><th style="text-align:left; padding:4px; border:1px solid #cbd5e1;">Keterangan</th></tr></thead>';
+                        hTableHtml += '<tbody>';
+                        for (var k = 0; k < lastLaporanData.holidays.length; k++) {
+                            hTableHtml += '<tr><td style="padding:4px; border:1px solid #cbd5e1;">' + lastLaporanData.holidays[k].tanggal + '</td><td style="padding:4px; border:1px solid #cbd5e1;">' + lastLaporanData.holidays[k].keterangan + '</td></tr>';
+                        }
+                        hTableHtml += '</tbody></table></div>';
+                        printHolidayContainer.innerHTML += hTableHtml;
+                    }
+                    
+                    // Add "Dicetak pada" timestamp for Print
+                    var now = new Date();
+                    var timeStr = now.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit', year:'numeric'}) + ' ' + 
+                                  now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+                    document.getElementById('print-date').innerHTML = '<em style="font-size:9px; color:#666">Dicetak pada: ' + timeStr + '</em>';
+                    document.getElementById('print-date').style.display = 'block';
+
+                    // Setup Footer Signature
+                    var kota = document.getElementById('opt-kota').value || 'Kota';
+                    var tanggal = formatDateIndo(document.getElementById('opt-tanggal').valueAsDate) || '';
+                    var kepsek = document.getElementById('opt-kepsek').value || '.........................';
+                    var kepsekNip = document.getElementById('opt-kepsek-nip').value;
+                    var guru = document.getElementById('opt-guru').value || '.........................';
+                    var guruNip = document.getElementById('opt-guru-nip').value;
+
+                    document.getElementById('sig-date').textContent = kota + ', ' + tanggal;
+                    document.getElementById('sig-kepsek-nama').textContent = kepsek;
+                    document.getElementById('sig-kepsek-nip').textContent = kepsekNip ? 'NIP. ' + kepsekNip : 'NIP. .........................';
+                    document.getElementById('sig-guru-nama').textContent = guru;
+                    document.getElementById('sig-guru-nip').textContent = guruNip ? 'NIP. ' + guruNip : 'NIP. .........................';
+
+                    // PERBAIKAN: Delay lebih lama untuk memastikan render sempurna
+                    setTimeout(function () { 
+                        console.log('🖨️ Membuka dialog print...');
+                        window.print(); 
+                    }, 1000); // Increased ke 1 detik untuk memastikan semua ter-render
+                }
+                
+                // Mulai proses dengan load Kop URL
+                getKopUrlAndPrint();
             }
 
             function loadAbsentStudents() {
@@ -5601,7 +5747,32 @@
                 }
             }
 
-            function idToLogoUrl(input) { if (!input || !input.trim()) return ''; input = input.trim(); if (input.indexOf('http') === 0) return input; return 'https://lh3.googleusercontent.com/d/' + input; }
+            /**
+             * Perbaiki Logika Blob Gambar: Konversi ID Google Drive atau URL ke format yang benar
+             * Mendukung:
+             * 1. URL lengkap (http/https)
+             * 2. ID Google Drive (akan dikonversi ke URL Google User Content)
+             * 3. URL Google Drive (drive.google.com/file/d/ID)
+             */
+            function idToLogoUrl(input) {
+                if (!input || !input.trim()) return '';
+                input = input.trim();
+                
+                // Jika sudah URL lengkap (http/https), return langsung
+                if (input.indexOf('http://') === 0 || input.indexOf('https://') === 0) {
+                    // Jika URL Google Drive format lama, extract ID-nya
+                    if (input.indexOf('drive.google.com/file/d/') !== -1) {
+                        var match = input.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                        if (match && match[1]) {
+                            return 'https://lh3.googleusercontent.com/d/' + match[1];
+                        }
+                    }
+                    return input;
+                }
+                
+                // Jika hanya ID, konversi ke URL Google User Content
+                return 'https://lh3.googleusercontent.com/d/' + input;
+            }
                         function loadSettings() { 
                 google.script.run.withSuccessHandler(function (s) { 
                     currentSettings = s; 
@@ -5628,20 +5799,24 @@
                     r.className = 'alert alert-success'; r.textContent = 'Kop Surat tersimpan!'; r.classList.remove('hidden');
                     setTimeout(function () { r.classList.add('hidden'); }, 2000);
                     updateKopPreview(url);
+                    // Update currentSettings untuk memastikan print bisa akses
                     if (currentSettings) currentSettings.kopSuratUrl = url;
+                    console.log('Kop Surat disimpan:', url);
                     // Also update home page logo if school logo is not set but kop is set? No, keep separate.
                 }).withFailureHandler(function (err) {
                     btn.disabled = false; btn.textContent = orig;
                     var r = document.getElementById('logo-result');
                     r.className = 'alert alert-error'; r.textContent = 'Gagal: ' + err.message; r.classList.remove('hidden');
+                    console.error('Gagal menyimpan Kop Surat:', err);
                 }).saveKopSuratUrl(url);
             }
 
             function updateKopPreview(url) {
                 var el = document.getElementById('kop-preview');
                 var fullUrl = idToLogoUrl(url);
+                console.log('Update Kop Preview - Input:', url, 'Full URL:', fullUrl);
                 if (fullUrl) {
-                    el.innerHTML = '<img src="' + fullUrl + '" style="width:100%;height:100%;object-fit:contain">';
+                    el.innerHTML = '<img src="' + fullUrl + '" style="width:100%;height:100%;object-fit:contain" onerror="console.error(\'Gagal load preview kop:\', this.src); this.parentElement.innerHTML=\'<span style=color:red>Error Load</span>\'">';
                 } else {
                     el.innerHTML = '<span>No Kop</span>';
                 }
